@@ -101,6 +101,9 @@ const clearInput = () => {
     followUpQuestion.value = null;
     error.value = '';
 };
+
+// Expose clear method for parent to call
+defineExpose({ clearInput });
 </script>
 
 <template>

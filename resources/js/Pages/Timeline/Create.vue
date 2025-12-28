@@ -25,6 +25,7 @@ const props = defineProps({
 const activeTab = ref('quick'); // 'form' or 'quick' - default to quick for new entries
 const showAiHelp = ref(false);
 const formRef = ref(null);
+const quickEntryRef = ref(null);
 
 const form = useForm({
     title: '',
@@ -58,6 +59,9 @@ const resetForm = () => {
 
     // Reset the form component's internal state
     formRef.value?.resetState?.();
+
+    // Clear the QuickEntry component
+    quickEntryRef.value?.clearInput?.();
 
     activeTab.value = 'quick';
 };
@@ -245,6 +249,7 @@ const applyParsedData = (parsed) => {
                     </div>
 
                     <QuickEntry
+                        ref="quickEntryRef"
                         @parsed="applyParsedData"
                         @submit="applyParsedData"
                     />
