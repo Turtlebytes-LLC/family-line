@@ -1,0 +1,179 @@
+<script setup>
+import { ref } from 'vue';
+import AppLayout from '@/Layouts/AppLayout.vue';
+import TimelineEntryForm from '@/Components/Timeline/TimelineEntryForm.vue';
+import QuickEntry from '@/Components/Timeline/QuickEntry.vue';
+import { useForm, Link, router } from '@inertiajs/vue3';
+import axios from 'axios';
+
+const props = defineProps({
+    eventTypes: Object,
+    visibilityOptions: Object,
+    hasAiEnabled: {
+        type: Boolean,
+        default: false,
+    },
+});
+
+const activeTab = ref('form'); // 'form' or 'quick'
+const showAiHelp = ref(false);
+const formRef = ref(null);
+
+const form = useForm({
+    title: '',
+    content: '',
+    event_date: '',
+    event_end_date: '',
+    event_type: 'story',
+    location: '',
+    people_involved: [],
+    family_surname: '',
+    visibility: 'immediate_family',
+    is_published: true,
+});
+
+const submit = async () => {
+    // Get selected backfill entries from the form component
+    const backfills = formRef.value?.getSelectedBackfills?.() || [];
+
+    // Submit the main form with backfill entries
+    form.transform((data) => ({
+        ...data,
+        backfill_entries: backfills.map(b => b.prefill),
+    })).post(route('timeline.store'));
+};
+
+const applyParsedData = (parsed) => {
+    if (parsed.title) form.title = parsed.title;
+    if (parsed.event_type) form.event_type = parsed.event_type;
+    if (parsed.event_date) form.event_date = parsed.event_date;
+    if (parsed.event_end_date) form.event_end_date = parsed.event_end_date;
+    if (parsed.location) form.location = parsed.location;
+    if (parsed.content) form.content = parsed.content;
+    if (parsed.people_involved?.length) {
+        form.people_involved = [...new Set([...form.people_involved, ...parsed.people_involved])];
+    }
+
+    // Switch to form view to show/edit results
+    activeTab.value = 'form';
+};
+</script>
+
+<template>
+    <AppLayout title="Add Timeline Entry">
+        <template #header>
+            <div class="flex items-center space-x-4">
+                <Link :href="route('timeline.index')" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                </Link>
+                <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+                    Add Timeline Entry
+                </h2>
+            </div>
+        </template>
+
+        <div class="py-12">
+            <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
+                <!-- Tab Navigation -->
+                <div class="mb-4 flex space-x-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                    <button
+                        @click="activeTab = 'quick'"
+                        :class="[
+                            'flex-1 py-2 px-4 text-sm font-medium rounded-md transition',
+                            activeTab === 'quick'
+                                ? 'bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 shadow'
+                                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+                        ]"
+                    >
+                        <span class="flex items-center justify-center space-x-2">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            <span>Quick Entry</span>
+                        </span>
+                    </button>
+                    <button
+                        @click="activeTab = 'form'"
+                        :class="[
+                            'flex-1 py-2 px-4 text-sm font-medium rounded-md transition',
+                            activeTab === 'form'
+                                ? 'bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 shadow'
+                                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+                        ]"
+                    >
+                        <span class="flex items-center justify-center space-x-2">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>Full Form</span>
+                        </span>
+                    </button>
+                </div>
+
+                <!-- Quick Entry Tab -->
+                <div v-show="activeTab === 'quick'" class="bg-white dark:bg-gray-800 overflow-hidden shadow-xl sm:rounded-lg p-6">
+                    <div class="mb-6">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                            Describe your event
+                        </h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            Just describe what happened naturally. AI will extract the details and fill in the form for you.
+                        </p>
+                    </div>
+
+                    <QuickEntry
+                        v-model="form"
+                        @parsed="applyParsedData"
+                        @submit="applyParsedData"
+                    />
+
+                    <!-- AI Setup Help -->
+                    <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                        <button
+                            @click="showAiHelp = !showAiHelp"
+                            class="flex items-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                        >
+                            <svg :class="['w-4 h-4 mr-2 transition-transform', showAiHelp ? 'rotate-90' : '']" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                            Enable AI-powered parsing (optional)
+                        </button>
+
+                        <div v-show="showAiHelp" class="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg text-sm">
+                            <p class="text-gray-700 dark:text-gray-300 mb-3">
+                                For enhanced AI parsing with Claude, add your Anthropic API key to your <code class="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded">.env</code> file:
+                            </p>
+                            <pre class="bg-gray-800 text-gray-100 p-3 rounded-md overflow-x-auto mb-3">ANTHROPIC_API_KEY=your-api-key-here</pre>
+                            <p class="text-gray-600 dark:text-gray-400 mb-2">
+                                To get an API key:
+                            </p>
+                            <ol class="list-decimal list-inside text-gray-600 dark:text-gray-400 space-y-1">
+                                <li>Visit <a href="https://console.anthropic.com" target="_blank" class="text-amber-600 hover:underline">console.anthropic.com</a></li>
+                                <li>Sign up or log in to your account</li>
+                                <li>Navigate to <strong>API Keys</strong> in the dashboard</li>
+                                <li>Click <strong>Create Key</strong> and copy your new key</li>
+                            </ol>
+                            <p class="mt-3 text-gray-500 dark:text-gray-500 text-xs">
+                                Without an API key, basic local parsing will still work for common patterns.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Full Form Tab -->
+                <div v-show="activeTab === 'form'" class="bg-white dark:bg-gray-800 overflow-hidden shadow-xl sm:rounded-lg p-6">
+                    <TimelineEntryForm
+                        ref="formRef"
+                        :form="form"
+                        :event-types="eventTypes"
+                        :visibility-options="visibilityOptions"
+                        submit-label="Create Entry"
+                        @submit="submit"
+                    />
+                </div>
+            </div>
+        </div>
+    </AppLayout>
+</template>
